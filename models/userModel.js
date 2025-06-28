@@ -14,11 +14,12 @@ const UserSchema = new mongoose.Schema({
   password: {
     type: String,
     required: true,
-    unique: true,
   },
-
-});
+  profilePicture: {
+    type: String,
+    default: "https://example.com/default-profile-picture.png",
+  },
+}, { timestamps: true });
 
 const User = mongoose.model("User", UserSchema);
-
 module.exports = User;

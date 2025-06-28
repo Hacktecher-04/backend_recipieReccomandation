@@ -1,125 +1,141 @@
 const Recipe = require('../models/recipe');
-const axios = require('axios');
 const ai = require('../services/ai.service');
 const dotenv = require("dotenv");
 dotenv.config();
 
 const getRecommendation = async (req, res) => {
-     
     try {
-        const { ingredients ,userId} = req.body;
-        // const userId = "681101ccd6aa3500d95ce774";
+        const { ingredients, userId } = req.body;
 
-        // Validate input
         if (!Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ error: "Ingredients must be a non-empty array." });
         }
-        // Check if the ingredients are valid and suggest alternatives if needed
-        const invalidIngredients = ingredients.filter(ingredient => typeof ingredient !== 'string' || ingredient.trim() === '');
-        if (invalidIngredients.length > 0) {
-            return res.status(400).json({ 
-            error: "Some ingredients are invalid. Please provide valid ingredient names.",
-            invalidIngredients
-            });
+
+        const cleanedIngredients = ingredients
+            .map(ing => ing.trim().toLowerCase())
+            .filter(ing => ing.length > 0 && typeof ing === "string");
+
+        if (cleanedIngredients.length === 0) {
+            return res.status(400).json({ error: "No valid ingredients found." });
         }
 
-        // Determine the type of prompt based on ingredients
-        const isVegetableOrFruit = ingredients.every(ingredient => {
-            const lowerCaseIngredient = ingredient.toLowerCase();
-            return lowerCaseIngredient.includes("vegetable") || lowerCaseIngredient.includes("fruit");
+        // Intelligent fallback for random sentences
+        const formattedIngredients = cleanedIngredients.join(', ');
+        const prompt = `
+I have these items (might be mixed, invalid, or vague): ${formattedIngredients}.
+Please ignore junk or invalid items and focus only on fruits, vegetables, or common Indian cooking ingredients.
+Return ONLY 10 simple home-cooked recipes, each structured exactly like below:
+
+---
+Recipe Name: [Short name without special characters]
+Ingredients: [Comma-separated, max 5 common ingredients]
+Instructions: [One paragraph, simple instructions]
+Cooking Time: [Only a number in minutes]
+Health Score: [Number between 1–100]
+---
+
+Strictly follow the structure for each recipe. Avoid numbering or bullet points. Don't include extra text before or after.
+    `;
+
+        const generatedText = await ai.generateResult(prompt);
+
+        // Parse multiple recipes using RegExp
+        const recipesRaw = generatedText.split('---').map(block => block.trim()).filter(Boolean);
+
+        const recipes = recipesRaw.map(block => {
+            const titleMatch = block.match(/Recipe Name:\s*(.+)/i);
+            const ingredientsMatch = block.match(/Ingredients:\s*(.+)/i);
+            const instructionsMatch = block.match(/Instructions:\s*(.+)/i);
+            const timeMatch = block.match(/Cooking Time:\s*(\d+)/i);
+            const scoreMatch = block.match(/Health Score:\s*(\d+)/i);
+
+            const title = titleMatch?.[1]?.trim() || "Untitled";
+            const ingredients = ingredientsMatch?.[1]?.trim() || "N/A";
+            const instructions = instructionsMatch?.[1]?.trim() || "Instructions not found.";
+            const cookingTime = timeMatch ? parseInt(timeMatch[1]) : "N/A";
+            const healthScore = scoreMatch ? parseInt(scoreMatch[1]) : 50;
+
+            return { title, ingredients, instructions, cookingTime, healthScore, userId };
         });
 
-        let prompt;
-        if (isVegetableOrFruit) {
-            prompt = `I have these vegetables or fruits: ${ingredients.join(
-              ", "
-            )}. Suggest only one recipe and easy that can made in home  with:
-               - Recipe name (short and clear without any special characters and give only name)
-               - Brief list of ingredients (comma-separated, max 5 items)
-               - Cooking instructions(in para form) 
-               - Estimated cooking time (in minutes, give a number not text)
-               - Health score (1-100 and not give ideas about score)
-            `;
-        } else {
-            prompt = `I have these ingredients: ${ingredients.join(', ')}. Suggest only one recipe and easy that can made in home  with:
-               - Recipe name (short and clear without any special characters and give only name)
-               - Brief list of ingredients (comma-separated, max 5 items)
-               - Cooking instructions(in para form)
-               - Estimated cooking time (in minutes, give a number not text)
-               - Health score (1-100 and not give ideas about score)
-               without start character
-            `;
-        }
+        // Save all recipes to DB
+        await Recipe.insertMany(recipes);
 
-        const generatedText = await ai.generateResult(prompt);  
-
-        const result = generatedText.split("\n").filter(line => line.trim());
-
-        // Validate AI response
-        if (result.length < 5) {
-            return res.status(400).json({ error: "AI response is incomplete or incorrectly formatted." });
-        }
-
-        const title = result[0]?.trim() || "Untitled";
-        const ingredientsList = result[1]?.trim() || "N/A";
-
-        // Join all lines between 2nd and 2nd-to-last as instructions
-        let instructions = result.slice(2, result.length - 2).join(" ").trim();
-
-        // Extract cooking time from the whole text
-        const regex = /(\d+)\s*(?:minutes|min)/i;
-        const cookingTimeLine = result[3]?.trim();
-        const cookingTime = /^\d+$/.test(cookingTimeLine) ? cookingTimeLine : "N/A";
-
-        // Remove cooking time from instructions if it’s mistakenly included
-        instructions = instructions.replace(regex, "").trim();
-        const healthScoreLine = result[result.length - 1]?.trim();
-        const healthScore = parseInt(healthScoreLine.split(':')[1], 10);
-        const validHealthScore = !isNaN(healthScore) ? healthScore : 50;
-
-        const newRecipe = new Recipe({
-            title,
-            ingredients: ingredientsList,
-            instructions,
-            cookingTime,
-            healthScore: validHealthScore,
-            userId
-        });
-
-        await newRecipe.save();
-
-        res.status(201).json({
-            title,
-            ingredients: ingredientsList,
-            instructions,
-            cookingTime,
-            healthScore: validHealthScore
-        });
-
+        res.status(201).json({ recipes });
     } catch (error) {
         console.error("Error in getRecommendation:", error);
         res.status(500).json({ message: "Something went wrong" });
     }
 };
 
-const getHistory = async (req,res)=>{
-    const {userId} = req.params;
-  try{
-    const history = await Recipe.find({userId});
-    if(!history || history.length===0){
-        return res.status(404).json({
-            message:"No history found"
-        })
+const getRecipeSteps = async (req, res) => {
+    try {
+        const { id } = req.params;
+
+        const recipe = await Recipe.findById(id);
+
+        if (!recipe) {
+            return res.status(404).json({ message: "Recipe not found." });
+        }
+
+        const prompt = `
+Give a full, detailed, and step-by-step cooking guide for the recipe below:
+
+Recipe Name: ${recipe.title}
+Ingredients: ${recipe.ingredients}
+
+Format:
+1. Step 1: [Description]
+2. Step 2: [Description]
+...
+Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary explanation. Return only the steps.
+    `;
+
+        const generatedSteps = await ai.generateResult(prompt);
+
+        const steps = generatedSteps
+            .split("\n")
+            .map(line => line.trim())
+            .filter(line => line && /^\d+[\).]/.test(line));
+
+        if (steps.length === 0) {
+            return res.status(500).json({ message: "AI did not return proper steps." });
+        }
+
+        res.status(200).json({
+            recipeId: id,
+            title: recipe.title,
+            ingredients: recipe.ingredients,
+            cookingTime: recipe.cookingTime,
+            steps,
+        });
+
+    } catch (error) {
+        console.error("Error in getRecipeSteps:", error);
+        res.status(500).json({ message: "Server error" });
     }
-    res.status(200).json(history);
-  }
-  catch(err){
-    console.log(err);
-     res.status(500).json({
-        message:"Server error"
-     });
-    
-  }
+};
+
+
+
+const getHistory = async (req, res) => {
+    const { userId } = req.params;
+    try {
+        const history = await Recipe.find({ userId });
+        if (!history || history.length === 0) {
+            return res.status(404).json({
+                message: "No history found"
+            })
+        }
+        res.status(200).json(history);
+    }
+    catch (err) {
+        console.log(err);
+        res.status(500).json({
+            message: "Server error"
+        });
+
+    }
 }
 
-module.exports = { getRecommendation ,getHistory};
+module.exports = { getRecommendation, getHistory, getRecipeSteps };
