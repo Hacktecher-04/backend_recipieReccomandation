@@ -3,9 +3,9 @@ const ai = require('../services/ai.service');
 const dotenv = require("dotenv");
 dotenv.config();
 
-const getRecommendation = async (req, res) => {
+const generateRecipesOnly = async (req, res) => {
     try {
-        const { ingredients, userId } = req.body;
+        const { ingredients } = req.body;
 
         if (!Array.isArray(ingredients) || ingredients.length === 0) {
             return res.status(400).json({ error: "Ingredients must be a non-empty array." });
@@ -19,7 +19,6 @@ const getRecommendation = async (req, res) => {
             return res.status(400).json({ error: "No valid ingredients found." });
         }
 
-        // Intelligent fallback for random sentences
         const formattedIngredients = cleanedIngredients.join(', ');
         const prompt = `
 I have these items (might be mixed, invalid, or vague): ${formattedIngredients}.
@@ -35,12 +34,10 @@ Health Score: [Number between 1–100]
 ---
 
 Strictly follow the structure for each recipe. Avoid numbering or bullet points. Don't include extra text before or after.
-    `;
+`;
 
         const generatedText = await ai.generateResult(prompt);
-
-        // Parse multiple recipes using RegExp
-        const recipesRaw = generatedText.split('---').map(block => block.trim()).filter(Boolean);
+        const recipesRaw = generatedText.split('---').map(r => r.trim()).filter(Boolean);
 
         const recipes = recipesRaw.map(block => {
             const titleMatch = block.match(/Recipe Name:\s*(.+)/i);
@@ -49,73 +46,74 @@ Strictly follow the structure for each recipe. Avoid numbering or bullet points.
             const timeMatch = block.match(/Cooking Time:\s*(\d+)/i);
             const scoreMatch = block.match(/Health Score:\s*(\d+)/i);
 
-            const title = titleMatch?.[1]?.trim() || "Untitled";
-            const ingredients = ingredientsMatch?.[1]?.trim() || "N/A";
-            const instructions = instructionsMatch?.[1]?.trim() || "Instructions not found.";
-            const cookingTime = timeMatch ? parseInt(timeMatch[1]) : "N/A";
-            const healthScore = scoreMatch ? parseInt(scoreMatch[1]) : 50;
-
-            return { title, ingredients, instructions, cookingTime, healthScore, userId };
+            return {
+                title: titleMatch?.[1]?.trim() || "Untitled",
+                ingredients: ingredientsMatch?.[1]?.trim() || "N/A",
+                instructions: instructionsMatch?.[1]?.trim() || "Instructions not found.",
+                cookingTime: timeMatch ? parseInt(timeMatch[1]) : "N/A",
+                healthScore: scoreMatch ? parseInt(scoreMatch[1]) : 50,
+            };
         });
 
-        // Save all recipes to DB
-        await Recipe.insertMany(recipes);
+        res.status(200).json({ recipes });
 
-        res.status(201).json({ recipes });
     } catch (error) {
-        console.error("Error in getRecommendation:", error);
+        console.error("Error in generateRecipesOnly:", error);
         res.status(500).json({ message: "Something went wrong" });
     }
 };
 
-const getRecipeSteps = async (req, res) => {
+
+const saveSelectedRecipe = async (req, res) => {
     try {
-        const { id } = req.params;
+        const { recipe, userId, prompt } = req.body;
 
-        const recipe = await Recipe.findById(id);
-
-        if (!recipe) {
-            return res.status(404).json({ message: "Recipe not found." });
+        if (!recipe || !userId || !prompt) {
+            return res.status(400).json({ message: "recipe, userId, and prompt are required" });
         }
 
-        const prompt = `
+        const stepsPrompt = `
 Give a full, detailed, and step-by-step cooking guide for the recipe below:
 
 Recipe Name: ${recipe.title}
 Ingredients: ${recipe.ingredients}
 
 Format:
-1. Step 1: [Description]
-2. Step 2: [Description]
+Step 1: [Description]
+Step 2: [Description]
 ...
-Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary explanation. Return only the steps.
-    `;
+Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary explanation. Return only the steps in the format "Step 1:", "Step 2:", etc. Do not use numbers with parentheses or dots.
+`;
 
-        const generatedSteps = await ai.generateResult(prompt);
+        const generatedSteps = await ai.generateResult(stepsPrompt);
 
         const steps = generatedSteps
             .split("\n")
             .map(line => line.trim())
-            .filter(line => line && /^\d+[\).]/.test(line));
+            .filter(line => line && /^Step \d+:/.test(line));
 
         if (steps.length === 0) {
             return res.status(500).json({ message: "AI did not return proper steps." });
         }
 
-        res.status(200).json({
-            recipeId: id,
+        const saved = await Recipe.create({
             title: recipe.title,
             ingredients: recipe.ingredients,
+            instructions: recipe.instructions,
             cookingTime: recipe.cookingTime,
+            healthScore: recipe.healthScore,
             steps,
+            userId,
+            prompt // 👈 Save original prompt
         });
 
-    } catch (error) {
-        console.error("Error in getRecipeSteps:", error);
-        res.status(500).json({ message: "Server error" });
-    }
-};
+        res.status(201).json({ saved });
 
+    } catch (error) {
+        console.error("Error in saveSelectedRecipe:", error);
+        res.status(500).json({ message: "Server error" });
+    }   
+};
 
 
 const getHistory = async (req, res) => {
@@ -138,4 +136,8 @@ const getHistory = async (req, res) => {
     }
 }
 
-module.exports = { getRecommendation, getHistory, getRecipeSteps };
+module.exports = {
+    getHistory,
+    generateRecipesOnly,
+    saveSelectedRecipe
+};
