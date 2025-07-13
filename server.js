@@ -6,8 +6,6 @@ const connectDB = require("./config/db");
 const userRouter = require("./routes/userRoutes");
 const recipeRouter = require("./routes/recommendationsRoute");
 
-
-
 dotenv.config();
 
 const app = express();
@@ -15,20 +13,18 @@ const PORT = process.env.PORT || 8000;
 
 //middelwares
 app.use(express.json());
-app.use(
-  cors({
-    origin: "https://khanakhajana04.netlify.app",
-    methods: ["GET", "POST", "DELETE", "PUT"],
-    allowedHeaders: [
-      "Content-Type",
-      "Authorization",
-      "Cache-Control",
-      "Expires",
-      "Pragma",
-    ],
-    credentials: true,
-  })
-);
+const allowedOrigins = ['http://localhost:3000', 'https://your-production-url.com'];
+
+app.use(cors({
+  origin: function(origin, callback) {
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true,
+}));
 app.use(cookieParser());
 
 //DB connection

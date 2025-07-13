@@ -22,6 +22,7 @@ const generateRecipesOnly = async (req, res) => {
         const formattedIngredients = cleanedIngredients.join(', ');
         const prompt = `
 I have these items (might be mixed, invalid, or vague): ${formattedIngredients}.
+give all content is mix of hindi and english dont send english content.
 Please ignore junk or invalid items and focus only on fruits, vegetables, or common Indian cooking ingredients.
 Return ONLY 10 simple home-cooked recipes, each structured exactly like below:
 
@@ -66,7 +67,8 @@ Strictly follow the structure for each recipe. Avoid numbering or bullet points.
 
 const saveSelectedRecipe = async (req, res) => {
     try {
-        const { recipe, userId, prompt } = req.body;
+        const { recipe, prompt } = req.body;
+        const userId = req.user.id
 
         if (!recipe || !userId || !prompt) {
             return res.status(400).json({ message: "recipe, userId, and prompt are required" });
@@ -82,7 +84,7 @@ Format:
 Step 1: [Description]
 Step 2: [Description]
 ...
-Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary explanation. Return only the steps in the format "Step 1:", "Step 2:", etc. Do not use numbers with parentheses or dots.
+Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary explanation. Return only the steps in the format "Step 1:", "Step 2:", etc. Do not use numbers with parentheses or dots and add also give all content is mix of hindi and english dont send english content.
 `;
 
         const generatedSteps = await ai.generateResult(stepsPrompt);
@@ -117,27 +119,51 @@ Make it beginner-friendly, don't skip any basic steps, and avoid unnecessary exp
 
 
 const getHistory = async (req, res) => {
-    const { userId } = req.params;
-    try {
-        const history = await Recipe.find({ userId });
-        if (!history || history.length === 0) {
-            return res.status(404).json({
-                message: "No history found"
-            })
-        }
-        res.status(200).json(history);
-    }
-    catch (err) {
-        console.log(err);
-        res.status(500).json({
-            message: "Server error"
-        });
+  try {
+    const history = await Recipe.find({ userId: req.user.id });
 
+    if (!history || history.length === 0) {
+      return res.status(404).json({ message: "No history found" });
     }
-}
+
+    return res.status(200).json(history);
+  } catch (err) {
+    console.error("Error in getHistory:", err);
+    return res.status(500).json({ message: "Server error" });
+  }
+};
+
+const deleteRecipe = async (req, res) => {
+  try {
+    const { recipeIds } = req.body; // array of recipe IDs to delete
+
+    if (!Array.isArray(recipeIds) || recipeIds.length === 0) {
+      return res.status(400).json({ message: "No recipes selected for deletion" });
+    }
+
+    // Delete all recipes where _id in recipeIds AND userId matches the logged-in user
+    const result = await Recipe.deleteMany({
+      _id: { $in: recipeIds },
+      userId: req.user.id,
+    });
+
+    if (result.deletedCount === 0) {
+      return res.status(404).json({ message: "No matching recipes found to delete" });
+    }
+
+    return res.status(200).json({
+      message: `${result.deletedCount} recipe(s) deleted successfully`,
+    });
+  } catch (err) {
+    console.error("Error deleting recipes:", err);
+    return res.status(500).json({ message: "Server error while deleting recipes" });
+  }
+};
+
 
 module.exports = {
     getHistory,
     generateRecipesOnly,
-    saveSelectedRecipe
+    saveSelectedRecipe,
+    deleteRecipe,
 };

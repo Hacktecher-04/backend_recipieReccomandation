@@ -17,7 +17,6 @@ exports.register = async ({ userName, email, password }) => {
 
   return {
     token: generateToken(user._id),
-    user: { id: user._id, userName: user.userName, email: user.email, profilePicture: user.profilePicture }
   };
 };
 
@@ -30,7 +29,6 @@ exports.login = async ({ email, password }) => {
 
   return {
     token: generateToken(user._id),
-    user: { id: user._id, userName: user.userName, email: user.email, profilePicture: user.profilePicture }
   };
 };
 
@@ -38,4 +36,17 @@ exports.getProfile = async (userId) => {
   const user = await User.findById(userId).select("-password");
   if (!user) throw new Error("User not found");
   return user;
+};
+
+exports.updateProfile = async (userId, userName, fileName) => {
+  const updatedUser = await User.findByIdAndUpdate(
+    userId,
+    {
+      userName,
+      profileImage: fileName,
+    },
+    { new: true }
+  );
+
+  return updatedUser;
 };
