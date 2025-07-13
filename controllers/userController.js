@@ -28,7 +28,8 @@ exports.registerUser = async (req, res) => {
 
 exports.loginUser = async (req, res) => {
   try {
-    const token = await authService.login(req.body); // get token string
+    const token = await authService.login(req.body);
+    console.log(token)// get token string
 
     res
       .cookie('token', token, cookieOptions)
@@ -44,6 +45,7 @@ exports.loginUser = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await authService.getProfile(req.user.id);
+    console.log(req.user)
     res.status(200).json(user);
   } catch (err) {
     res.status(404).json({ message: err.message });
