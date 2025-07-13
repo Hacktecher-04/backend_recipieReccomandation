@@ -45,6 +45,7 @@ exports.loginUser = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await authService.getProfile(req.user.id);
+    console.log(req.user)
     res.status(200).json(user);
   } catch (err) {
     res.status(404).json({ message: err.message });
