@@ -28,7 +28,8 @@ exports.registerUser = async (req, res) => {
 
 exports.loginUser = async (req, res) => {
   try {
-    const token = await authService.login(req.body); // get token string
+    const token = await authService.login(req.body);
+    console.log(token)// get token string
 
     res
       .cookie('token', token, cookieOptions)
