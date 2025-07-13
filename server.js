@@ -13,7 +13,7 @@ const PORT = process.env.PORT || 8000;
 
 //middelwares
 app.use(express.json());
-const allowedOrigins = "https://khanakhajana04.netlify.app"
+const allowedOrigins = "http://localhost:3000"
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
