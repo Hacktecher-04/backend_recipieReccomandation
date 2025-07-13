@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 
 const authMiddleware = (req, res, next) => {
-  const token = req.cookies.token.token; // cookie-parser middleware should be used
+  const token = req.cookies.token; // cookie-parser middleware should be used
   if (!token) return res.status(401).json({ message: 'No token provided' });
 
   try {
