@@ -38,15 +38,15 @@ exports.getProfile = async (userId) => {
   return user;
 };
 
-exports.updateProfile = async (userId, userName, fileName) => {
+exports.updateProfile = async (userId, userName, profilePicture) => {
   const updatedUser = await User.findByIdAndUpdate(
     userId,
     {
-      userName,
-      profileImage: fileName,
+      userName : userName,
+      profilePicture : profilePicture,
     },
     { new: true }
   );
 
   return updatedUser;
-};
+};  

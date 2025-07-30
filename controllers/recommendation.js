@@ -141,7 +141,6 @@ const deleteRecipe = async (req, res) => {
       return res.status(400).json({ message: "No recipes selected for deletion" });
     }
 
-    // Delete all recipes where _id in recipeIds AND userId matches the logged-in user
     const result = await Recipe.deleteMany({
       _id: { $in: recipeIds },
       userId: req.user.id,
