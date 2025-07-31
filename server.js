@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 8000;
 
 //middelwares
 app.use(express.json());
-const allowedOrigins = "http://localhost:3000"
+const allowedOrigins = "https://backend-recipiereccomandation.onrender.com"
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
