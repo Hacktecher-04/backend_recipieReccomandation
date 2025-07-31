@@ -11,7 +11,7 @@ const PORT = process.env.PORT || 8000;
 
 //middelwares
 app.use(express.json());
-const allowedOrigins = "http://localhost:3000"
+const allowedOrigins = process.env.FRONTEND_URL  || "http://localhost:3000"
 app.use(cors({
   origin: function(origin, callback) {
     if (!origin || allowedOrigins.includes(origin)) {
@@ -24,7 +24,6 @@ app.use(cors({
 }));
 app.use(cookieParser());
 
-//DB connection
 connectDB();
 
 //Routes
