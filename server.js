@@ -13,13 +13,7 @@ const PORT = process.env.PORT || 8000;
 app.use(express.json());
 const allowedOrigins = process.env.FRONTEND_URL  || "http://localhost:3000"
 app.use(cors({
-  origin: function(origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
+  origin: allowedOrigins,
   credentials: true,
 }));
 app.use(cookieParser());
@@ -28,6 +22,10 @@ connectDB();
 
 app.get('/', (req,res) => {
   res.json('page is working')
+})
+
+app.get('/api', (req,res) => {
+  res.json('api is working')
 })
 
 //Routes
