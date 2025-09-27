@@ -13,10 +13,7 @@ exports.registerUser = async (req, res) => {
   try {
     const token = await authService.register(req.body); 
 
-    res
-      .cookie('token', token, cookieOptions)
-      .status(201)
-      .json({ message: 'User registered successfully' }); 
+    res.status(201).json({ token });
   } catch (err) {
     res.status(400).json({ message: err.message });
   }
@@ -26,11 +23,7 @@ exports.loginUser = async (req, res) => {
   try {
     const token = await authService.login(req.body);
 
-    res
-      .cookie('token', token, cookieOptions)
-      .status(200)
-      .json({ message: 'Login successful' });
-
+    res.status(200).json({ token });
   } catch (err) {
     res.status(401).json({ message: err.message });
   }
@@ -40,7 +33,6 @@ exports.loginUser = async (req, res) => {
 exports.getProfile = async (req, res) => {
   try {
     const user = await authService.getProfile(req.user.id);
-    console.log(req.user.id)
     res.status(200).json(user);
   } catch (err) {
     res.status(404).json({ message: err.message });
